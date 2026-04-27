@@ -15,6 +15,13 @@
       "when": 1777285204489,
       "tag": "0001_broken_professor_monster",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1777285876989,
+      "tag": "0002_nostalgic_jane_foster",
+      "breakpoints": true
     }
   ]
 }

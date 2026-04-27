@@ -1,0 +1,171 @@
+name: CI/CD — GenAI World Model
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "10"
+
+jobs:
+  # ─── Lint & Type Check ──────────────────────────────────────────────────────
+  lint-and-typecheck:
+    name: 🔍 Lint & TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Format check
+        run: pnpm format --check
+        continue-on-error: true
+
+  # ─── Unit Tests ─────────────────────────────────────────────────────────────
+  test:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+        env:
+          DATABASE_URL: ""
+          JWT_SECRET: "test-secret-for-ci"
+          BUILT_IN_FORGE_API_KEY: "test-key"
+          BUILT_IN_FORGE_API_URL: "https://api.example.com"
+          VITE_APP_ID: "test-app"
+          OAUTH_SERVER_URL: "https://oauth.example.com"
+          VITE_OAUTH_PORTAL_URL: "https://portal.example.com"
+          OWNER_OPEN_ID: "test-owner"
+          OWNER_NAME: "Test Owner"
+
+  # ─── Build ──────────────────────────────────────────────────────────────────
+  build:
+    name: 🏗️ Production Build
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm build
+        env:
+          DATABASE_URL: ""
+          JWT_SECRET: "build-secret"
+          BUILT_IN_FORGE_API_KEY: "build-key"
+          BUILT_IN_FORGE_API_URL: "https://api.example.com"
+          VITE_APP_ID: "genai-world-model"
+          OAUTH_SERVER_URL: "https://oauth.example.com"
+          VITE_OAUTH_PORTAL_URL: "https://portal.example.com"
+          OWNER_OPEN_ID: "owner"
+          OWNER_NAME: "GenAI World Model"
+          VITE_ANALYTICS_ENDPOINT: ""
+          VITE_ANALYTICS_WEBSITE_ID: ""
+          VITE_FRONTEND_FORGE_API_KEY: "build-key"
+          VITE_FRONTEND_FORGE_API_URL: "https://api.example.com"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 7
+
+  # ─── Security Audit ─────────────────────────────────────────────────────────
+  security:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run security audit
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+  # ─── Release Summary ────────────────────────────────────────────────────────
+  summary:
+    name: 📋 Build Summary
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test, build]
+    if: always()
+    steps:
+      - name: Print summary
+        run: |
+          echo "## 🌌 GenAI World Model CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & TypeCheck | ${{ needs.lint-and-typecheck.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

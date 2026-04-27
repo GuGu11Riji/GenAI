@@ -14,6 +14,7 @@ import ProjectsPage from "./pages/ProjectsPage";
 import TimelinePage from "./pages/TimelinePage";
 import ResearchersPage from "./pages/ResearchersPage";
 import AgentPage from "./pages/AgentPage";
+import ProfilePage from "./pages/ProfilePage";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/timeline" component={TimelinePage} />
       <Route path="/researchers" component={ResearchersPage} />
       <Route path="/agent" component={AgentPage} />
+      <Route path="/profile" component={ProfilePage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

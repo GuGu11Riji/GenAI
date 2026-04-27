@@ -5,6 +5,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import GaussianSplatBackground from "@/components/GaussianSplatBackground";
 import { researchers, papers, type Researcher } from "@/lib/data";
+import FavoriteButton from "@/components/FavoriteButton";
 
 const RESEARCHER_BG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663401955343/4rXpPdLRF3WHsVMU8dtgx6/researcher-profile-bg-GJQrRxftExccTFXVSTENmF.webp";
 
@@ -133,23 +134,27 @@ function ResearcherCard({ researcher, rank, isSelected, onClick }: {
           <div className="text-xs text-slate-600 mono-data">
             {isSelected ? "▲ 收起详情" : "▼ 展开详情"}
           </div>
-          {researcher.googleScholar && (
-            <a
-              href={researcher.googleScholar}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
-              className="text-xs px-3 py-1 rounded-md transition-all hover:scale-105"
-              style={{
-                background: "rgba(0,245,255,0.08)",
-                border: "1px solid rgba(0,245,255,0.25)",
-                color: "#00F5FF",
-                fontFamily: "'IBM Plex Mono', monospace"
-              }}
-            >
-              Scholar →
-            </a>
-          )}
+          <div className="flex items-center gap-2">
+            <FavoriteButton
+              itemType="researcher"
+              itemId={researcher.id}
+              itemName={researcher.name}
+              itemMeta={{ affiliation: researcher.affiliation, hIndex: researcher.hIndex, citations: researcher.citations }}
+              size="sm"
+            />
+            {researcher.googleScholar && (
+              <a
+                href={researcher.googleScholar}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="text-xs px-3 py-1 rounded-md transition-all hover:scale-105"
+                style={{ background: "rgba(0,245,255,0.08)", border: "1px solid rgba(0,245,255,0.25)", color: "#00F5FF", fontFamily: "'IBM Plex Mono', monospace" }}
+              >
+                Scholar →
+              </a>
+            )}
+          </div>
         </div>
       </div>
 

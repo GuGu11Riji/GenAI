@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { id: "timeline", icon: "◎", label: "演进时间轴", labelEn: "Timeline", path: "/timeline", color: "#00FF88" },
   { id: "researchers", icon: "◉", label: "大佬排行榜", labelEn: "Rankings", path: "/researchers", color: "#FFD700" },
   { id: "agent", icon: "◆", label: "AI 问答", labelEn: "AI Agent", path: "/agent", color: "#FF00FF" },
+  { id: "profile", icon: "♡", label: "我的收藏", labelEn: "My Favorites", path: "/profile", color: "#FF6B35" },
 ];
 
 export default function SideNav() {

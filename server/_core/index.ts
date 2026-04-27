@@ -44,6 +44,20 @@ async function startServer() {
       createContext,
     })
   );
+  // ── Scheduled task endpoint (called by Manus scheduled tasks) ──────────────
+  // Accepts POST with optional auth cookie (user role) from Manus platform
+  app.post("/api/scheduled/refresh", async (req, res) => {
+    try {
+      // Call the tRPC scheduled.refresh procedure internally
+      const caller = appRouter.createCaller(await createContext({ req, res } as any));
+      const result = await caller.scheduled.refresh({});
+      res.json({ ok: true, ...result, timestamp: new Date().toISOString() });
+    } catch (e: any) {
+      console.error("[Scheduled Refresh Error]", e);
+      res.status(500).json({ ok: false, error: e?.message || "Unknown error" });
+    }
+  });
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

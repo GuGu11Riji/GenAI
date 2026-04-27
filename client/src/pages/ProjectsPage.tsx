@@ -5,6 +5,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import GaussianSplatBackground from "@/components/GaussianSplatBackground";
 import { projects, papers, categories, type OpenSourceProject, type Paper } from "@/lib/data";
+import FavoriteButton from "@/components/FavoriteButton";
 
 function PaperCard({ paper }: { paper: Paper }) {
   return (
@@ -107,21 +108,25 @@ function ProjectCard({ project, isSelected, onClick }: {
             <span>⑂ {project.forks >= 1000 ? `${(project.forks / 1000).toFixed(1)}k` : project.forks}</span>
             <span>📄 {relatedPapers.length} 篇论文</span>
           </div>
-          <a
-            href={project.githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            className="text-xs px-3 py-1 rounded-md transition-all hover:scale-105"
-            style={{
-              background: "rgba(0,245,255,0.08)",
-              border: "1px solid rgba(0,245,255,0.25)",
-              color: "#00F5FF",
-              fontFamily: "'IBM Plex Mono', monospace"
-            }}
-          >
-            GitHub →
-          </a>
+                  <div className="flex items-center gap-2">
+            <FavoriteButton
+              itemType="project"
+              itemId={project.id}
+              itemName={project.name}
+              itemMeta={{ stars: project.stars, language: project.language, description: project.descriptionZh }}
+              size="sm"
+            />
+            <a
+              href={project.githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              className="text-xs px-3 py-1 rounded-md transition-all hover:scale-105"
+              style={{ background: "rgba(0,245,255,0.08)", border: "1px solid rgba(0,245,255,0.25)", color: "#00F5FF", fontFamily: "'IBM Plex Mono', monospace" }}
+            >
+              GitHub →
+            </a>
+          </div>
         </div>
       </div>
 

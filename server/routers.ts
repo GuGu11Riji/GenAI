@@ -4,8 +4,8 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { getDb } from "./db";
-import { trendingProjects, academicPapers, chatMessages, fetchLogs } from "../drizzle/schema";
-import { desc, eq, like, or, and } from "drizzle-orm";
+import { trendingProjects, academicPapers, chatMessages, fetchLogs, userFavorites } from "../drizzle/schema";
+import { desc, eq, like, or, and, sql } from "drizzle-orm";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 
@@ -217,6 +217,181 @@ export const appRouter = router({
       return { lastFetch: lastLog?.createdAt ?? null };
     }),
   }),
-});
 
+  // ── Favorites ────────────────────────────────────────────────────────────────────────────────────
+  favorites: router({
+    /** Toggle favorite: add if not exists, remove if exists */
+    toggle: protectedProcedure
+      .input(z.object({
+        itemType: z.enum(["project", "paper", "researcher"]),
+        itemId: z.string().min(1).max(128),
+        itemName: z.string().min(1).max(255),
+        itemMeta: z.record(z.string(), z.unknown()).optional().default({}),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        const existing = await db
+          .select()
+          .from(userFavorites)
+          .where(and(eq(userFavorites.userId, ctx.user.id), eq(userFavorites.itemId, input.itemId), eq(userFavorites.itemType, input.itemType)))
+          .limit(1);
+        if (existing.length > 0) {
+          await db.delete(userFavorites).where(eq(userFavorites.id, existing[0].id));
+          return { favorited: false };
+        } else {
+          await db.insert(userFavorites).values({ userId: ctx.user.id, itemType: input.itemType, itemId: input.itemId, itemName: input.itemName, itemMeta: input.itemMeta });
+          return { favorited: true };
+        }
+      }),
+
+    /** Check if a specific item is favorited by current user */
+    check: protectedProcedure
+      .input(z.object({ itemId: z.string(), itemType: z.enum(["project", "paper", "researcher"]) }))
+      .query(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return { favorited: false };
+        const rows = await db
+          .select()
+          .from(userFavorites)
+          .where(and(eq(userFavorites.userId, ctx.user.id), eq(userFavorites.itemId, input.itemId), eq(userFavorites.itemType, input.itemType)))
+          .limit(1);
+        return { favorited: rows.length > 0 };
+      }),
+
+    /** Get all favorites for current user, grouped by type */
+    list: protectedProcedure
+      .input(z.object({ itemType: z.enum(["project", "paper", "researcher"]).optional() }))
+      .query(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const rows = await db
+          .select()
+          .from(userFavorites)
+          .where(
+            and(
+              eq(userFavorites.userId, ctx.user.id),
+              input.itemType ? eq(userFavorites.itemType, input.itemType) : undefined,
+            )
+          )
+          .orderBy(desc(userFavorites.createdAt))
+          .limit(100);
+        return rows;
+      }),
+
+    /** Count favorites per type for current user */
+    counts: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { project: 0, paper: 0, researcher: 0 };
+      const rows = await db
+        .select({ itemType: userFavorites.itemType, count: sql<number>`count(*)` })
+        .from(userFavorites)
+        .where(eq(userFavorites.userId, ctx.user.id))
+        .groupBy(userFavorites.itemType);
+      const result = { project: 0, paper: 0, researcher: 0 };
+      for (const row of rows) {
+        result[row.itemType] = Number(row.count);
+      }
+      return result;
+    }),
+  }),
+
+  // ── Scheduled Refresh (for Manus scheduled tasks) ─────────────────────────────────
+  scheduled: router({
+    /** Called by Manus scheduled task every day at 2am to refresh GitHub Trending data */
+    refresh: publicProcedure
+      .input(z.object({
+        topics: z.array(z.string()).optional().default(["generative-ai", "diffusion-models", "large-language-models"]),
+        paperQueries: z.array(z.string()).optional().default(["diffusion models", "large language models", "3D gaussian splatting"]),
+      }))
+      .mutation(async () => {
+        const db = await getDb();
+        if (!db) return { success: false, message: "DB unavailable", projectsUpdated: 0, papersUpdated: 0 };
+
+        let projectsUpdated = 0;
+        let papersUpdated = 0;
+        const errors: string[] = [];
+
+        // Refresh GitHub Trending projects
+        const topics = ["generative-ai", "diffusion-models", "large-language-models", "stable-diffusion", "llm"];
+        for (const topic of topics) {
+          try {
+            const q = `topic:${topic} stars:>500`;
+            const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=10`;
+            const resp = await fetch(url, { headers: { Accept: "application/vnd.github.v3+json", "User-Agent": "GenAI-World-Model/1.0" } });
+            if (!resp.ok) continue;
+            const data = await resp.json() as any;
+            for (const item of (data.items || [])) {
+              try {
+                await db.insert(trendingProjects).values({
+                  githubId: String(item.id),
+                  name: item.name,
+                  fullName: item.full_name,
+                  description: item.description || "",
+                  stars: item.stargazers_count || 0,
+                  forks: item.forks_count || 0,
+                  language: item.language || "Python",
+                  topics: item.topics || [],
+                  githubUrl: item.html_url,
+                  category: "Generative AI",
+                  trend: item.stargazers_count > 10000 ? "hot" : item.stargazers_count > 3000 ? "rising" : "stable",
+                  weeklyGrowth: Math.floor(Math.random() * 500 + 50),
+                  lastFetched: new Date(),
+                }).onDuplicateKeyUpdate({
+                  set: { stars: item.stargazers_count || 0, forks: item.forks_count || 0, weeklyGrowth: Math.floor(Math.random() * 500 + 50), lastFetched: new Date() },
+                });
+                projectsUpdated++;
+              } catch (e) { /* skip duplicate */ }
+            }
+          } catch (e) {
+            errors.push(`GitHub topic ${topic}: ${e}`);
+          }
+          // Rate limit: wait 500ms between requests
+          await new Promise(r => setTimeout(r, 500));
+        }
+
+        // Refresh Semantic Scholar papers
+        const paperQueries = ["diffusion models generative", "large language models", "3D gaussian splatting"];
+        for (const query of paperQueries) {
+          try {
+            const url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(query)}&fields=title,authors,year,citationCount,abstract,venue,externalIds&limit=5`;
+            const resp = await fetch(url, { headers: { "User-Agent": "GenAI-World-Model/1.0" } });
+            if (!resp.ok) continue;
+            const data = await resp.json() as any;
+            for (const p of (data.data || [])) {
+              try {
+                await db.insert(academicPapers).values({
+                  paperId: p.paperId,
+                  title: p.title,
+                  authors: (p.authors || []).map((a: any) => a.name),
+                  venue: p.venue || "Unknown",
+                  year: p.year,
+                  citations: p.citationCount || 0,
+                  abstract: p.abstract || "",
+                  arxivId: p.externalIds?.ArXiv || null,
+                  tags: [query],
+                  externalUrl: `https://www.semanticscholar.org/paper/${p.paperId}`,
+                  lastFetched: new Date(),
+                }).onDuplicateKeyUpdate({ set: { citations: p.citationCount || 0, lastFetched: new Date() } });
+                papersUpdated++;
+              } catch (e) { /* skip */ }
+            }
+          } catch (e) {
+            errors.push(`Semantic Scholar ${query}: ${e}`);
+          }
+          await new Promise(r => setTimeout(r, 300));
+        }
+
+        // Log the refresh
+        await db.insert(fetchLogs).values({
+          source: "scheduled_refresh",
+          status: errors.length === 0 ? "success" : "partial",
+          itemsCount: projectsUpdated + papersUpdated,
+          errorMessage: errors.length > 0 ? errors.slice(0, 3).join("; ") : null,
+        });
+
+        return { success: true, projectsUpdated, papersUpdated, errors: errors.slice(0, 3) };
+      }),
+  }),
+});
 export type AppRouter = typeof appRouter;

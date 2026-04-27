@@ -96,3 +96,17 @@ export const fetchLogs = mysqlTable("fetch_logs", {
 });
 
 export type FetchLog = typeof fetchLogs.$inferSelect;
+
+// ─── User Favorites ──────────────────────────────────────────────────────────
+export const userFavorites = mysqlTable("user_favorites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  itemType: mysqlEnum("itemType", ["project", "paper", "researcher"]).notNull(),
+  itemId: varchar("itemId", { length: 128 }).notNull(),
+  itemName: varchar("itemName", { length: 255 }).notNull(),
+  itemMeta: json("itemMeta").$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type UserFavorite = typeof userFavorites.$inferSelect;
+export type InsertUserFavorite = typeof userFavorites.$inferInsert;
