@@ -3,6 +3,7 @@
 // Hero section with Gaussian Splat background, stats overview, quick access cards
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import GaussianSplatBackground from "@/components/GaussianSplatBackground";
@@ -73,6 +74,10 @@ const quickCards = [
 const recentProjects = projects.slice(0, 4);
 
 export default function Home() {
+  // The userAuth hooks provides authentication state
+  // To implement login/logout functionality, simply call logout() or redirect to getLoginUrl()
+  let { user, loading, error, isAuthenticated, logout } = useAuth();
+
   const [tick, setTick] = useState(0);
 
   useEffect(() => {

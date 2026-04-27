@@ -14,8 +14,8 @@ import ProjectsPage from "./pages/ProjectsPage";
 import TimelinePage from "./pages/TimelinePage";
 import ResearchersPage from "./pages/ResearchersPage";
 import AgentPage from "./pages/AgentPage";
-
 function Router() {
+  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path="/" component={Home} />
